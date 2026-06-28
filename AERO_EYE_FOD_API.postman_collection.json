@@ -1,0 +1,712 @@
+{
+  "info": {
+    "name": "AERO-EYE FOD — Foreign Object Detection API",
+    "description": "Complete Postman collection for the Industrial FOD Detection REST API.\n\n**Setup:**\n1. Change the 3 variables at the top:\n   - `ref_image_path` → path to your reference (OK) image\n   - `curr_image_path` → path to your current (inspection) image\n   - `mask_image_path` → path to ignore mask (optional, leave blank if none)\n\n2. Import this file into Postman\n3. Run the collection in order or test individual endpoints\n\n**Base URL:** http://localhost:8000",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "aero-eye-fod-api-v1"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string",
+      "description": "Server base URL"
+    },
+    {
+      "key": "ref_image_path",
+      "value": "C:\\Users\\YourName\\Pictures\\reference.jpg",
+      "type": "string",
+      "description": ">>> CHANGE THIS: Absolute path to your OK reference image"
+    },
+    {
+      "key": "curr_image_path",
+      "value": "C:\\Users\\YourName\\Pictures\\current.jpg",
+      "type": "string",
+      "description": ">>> CHANGE THIS: Absolute path to your inspection (live) image"
+    },
+    {
+      "key": "mask_image_path",
+      "value": "C:\\Users\\YourName\\Pictures\\mask.png",
+      "type": "string",
+      "description": ">>> CHANGE THIS: Absolute path to ignore mask (optional, remove the field if not needed)"
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "string",
+      "description": "Auto-populated after Submit Async Job is called"
+    }
+  ],
+  "item": [
+    {
+      "name": "1 — SYSTEM",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "health"]
+            },
+            "description": "Returns service health status, API version, and detection engine identifier.\n\nExpected response:\n```json\n{\n  \"status\": \"ok\",\n  \"version\": \"1.0.0\",\n  \"engine\": \"HYBRID_COLOR+DIFFMAP\",\n  \"message\": \"...\"\n}\n```"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"ok\",\n  \"version\": \"1.0.0\",\n  \"engine\": \"HYBRID_COLOR+DIFFMAP\",\n  \"message\": \"AERO-EYE FOD API is running. All systems operational.\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 — CONFIGURATION",
+      "item": [
+        {
+          "name": "Get Active Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/config",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "config"]
+            },
+            "description": "Returns the full active detection configuration.\n`source` will be `default` or `custom`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"config\": {\n    \"preprocessing\": { \"apply_clahe\": true, \"denoise_strength\": 3.0 },\n    \"alignment\": { \"method\": \"SIFT\", \"max_features\": 2000 },\n    \"difference\": { \"weight_ssim\": 0.35, \"threshold_method\": \"OTSU\" },\n    \"validation\": { \"enable_dl_validation\": true, \"deep_feature_threshold\": 0.85 }\n  },\n  \"source\": \"default\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"difference\": {\n    \"weight_ssim\": 0.40,\n    \"threshold_method\": \"OTSU\"\n  },\n  \"validation\": {\n    \"enable_dl_validation\": true,\n    \"deep_feature_threshold\": 0.82\n  },\n  \"region\": {\n    \"min_area\": 50\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/config",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "config"]
+            },
+            "description": "Partially or fully update the detection config.\nOnly the fields you include are changed — all others keep their current values.\n\nAvailable sections: `preprocessing`, `alignment`, `difference`, `region`, `validation`"
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Config to Defaults",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/config/reset",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "config", "reset"]
+            },
+            "description": "Resets all configuration back to factory defaults and removes any saved custom config."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3 — SYNCHRONOUS DETECTION",
+      "item": [
+        {
+          "name": "Detect FOD (Sync) — Basic",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "reference_images",
+                  "type": "file",
+                  "src": "{{ref_image_path}}",
+                  "description": "OK reference image (change path in Variables)"
+                },
+                {
+                  "key": "current_image",
+                  "type": "file",
+                  "src": "{{curr_image_path}}",
+                  "description": "Inspection image (change path in Variables)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/detect",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "detect"]
+            },
+            "description": "**Blocking** synchronous detection — waits and returns the full result immediately.\n\nChange the file paths in Collection Variables:\n- `ref_image_path`\n- `curr_image_path`\n\nResponse includes `status`, `objects`, `detections[]`, output image URLs, and processing time."
+          },
+          "response": [
+            {
+              "name": "FOD Detected",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"FOD_DETECTED\",\n  \"accuracy_mode\": \"HYBRID_COLOR+DIFFMAP\",\n  \"similarity_score\": 95.64,\n  \"alignment_score\": 0.853,\n  \"objects\": 1,\n  \"detections\": [\n    {\n      \"x\": 510, \"y\": 193,\n      \"width\": 99, \"height\": 158,\n      \"area\": 8426,\n      \"confidence\": 0.827,\n      \"label\": \"foreign_object_color_orange\",\n      \"method\": \"color_anomaly\"\n    }\n  ],\n  \"output_image\": \"output/curr_1234_marked.jpg\",\n  \"difference_map\": \"output/curr_1234_diff.jpg\",\n  \"mask_image\": \"output/curr_1234_mask.png\",\n  \"processing_time_ms\": 1244\n}"
+            },
+            {
+              "name": "No FOD",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"NO_FOD\",\n  \"accuracy_mode\": \"HYBRID_COLOR+DIFFMAP\",\n  \"similarity_score\": 99.12,\n  \"alignment_score\": 0.91,\n  \"objects\": 0,\n  \"detections\": [],\n  \"output_image\": \"output/curr_5678_marked.jpg\",\n  \"difference_map\": \"output/curr_5678_diff.jpg\",\n  \"mask_image\": \"output/curr_5678_mask.png\",\n  \"processing_time_ms\": 980\n}"
+            }
+          ]
+        },
+        {
+          "name": "Detect FOD (Sync) — With Ignore Mask",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "reference_images",
+                  "type": "file",
+                  "src": "{{ref_image_path}}"
+                },
+                {
+                  "key": "current_image",
+                  "type": "file",
+                  "src": "{{curr_image_path}}"
+                },
+                {
+                  "key": "ignore_mask",
+                  "type": "file",
+                  "src": "{{mask_image_path}}",
+                  "description": "Optional: binary PNG mask (white=inspect, black=ignore)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/detect",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "detect"]
+            },
+            "description": "Same as basic sync detect but with an ignore zone mask.\nBlack areas in the mask are excluded from FOD detection (e.g., scanner UI overlays, known fixtures)."
+          },
+          "response": []
+        },
+        {
+          "name": "Detect FOD (Sync) — Custom Thresholds",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "reference_images",
+                  "type": "file",
+                  "src": "{{ref_image_path}}"
+                },
+                {
+                  "key": "current_image",
+                  "type": "file",
+                  "src": "{{curr_image_path}}"
+                },
+                {
+                  "key": "min_area",
+                  "value": "30",
+                  "type": "text",
+                  "description": "Min object area in pixels (default: 20)"
+                },
+                {
+                  "key": "threshold_method",
+                  "value": "OTSU",
+                  "type": "text",
+                  "description": "OTSU | ADAPTIVE | STATIC"
+                },
+                {
+                  "key": "enable_dl_validation",
+                  "value": "true",
+                  "type": "text",
+                  "description": "true | false"
+                },
+                {
+                  "key": "deep_feature_threshold",
+                  "value": "0.82",
+                  "type": "text",
+                  "description": "Shadow rejection threshold (0.5–0.98)"
+                },
+                {
+                  "key": "weight_ssim",
+                  "value": "0.35",
+                  "type": "text",
+                  "description": "SSIM weight (0–1)"
+                },
+                {
+                  "key": "weight_abs_diff",
+                  "value": "0.25",
+                  "type": "text"
+                },
+                {
+                  "key": "weight_lab_diff",
+                  "value": "0.25",
+                  "type": "text"
+                },
+                {
+                  "key": "weight_edge_diff",
+                  "value": "0.15",
+                  "type": "text"
+                },
+                {
+                  "key": "min_align_score",
+                  "value": "0.40",
+                  "type": "text",
+                  "description": "Min acceptable alignment quality"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/detect",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "detect"]
+            },
+            "description": "Synchronous detection with all tunable parameters exposed.\nAdjust the form values to tune sensitivity without changing server config."
+          },
+          "response": []
+        },
+        {
+          "name": "Detect FOD (Sync) — Multiple References",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "reference_images",
+                  "type": "file",
+                  "src": "{{ref_image_path}}",
+                  "description": "Reference image 1"
+                },
+                {
+                  "key": "reference_images",
+                  "type": "file",
+                  "src": "{{ref_image_path}}",
+                  "description": "Reference image 2 — change to a different path"
+                },
+                {
+                  "key": "current_image",
+                  "type": "file",
+                  "src": "{{curr_image_path}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/detect",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "detect"]
+            },
+            "description": "Pass multiple reference images — the engine picks the best-aligning one automatically.\nUseful when you have references from different angles/lighting."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4 — ASYNC INSPECTION JOBS",
+      "item": [
+        {
+          "name": "Submit Inspection Job",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Auto-save job_id to collection variable for polling requests",
+                  "var json = pm.response.json();",
+                  "if (json.job_id) {",
+                  "    pm.collectionVariables.set('job_id', json.job_id);",
+                  "    console.log('job_id saved:', json.job_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "reference_images",
+                  "type": "file",
+                  "src": "{{ref_image_path}}",
+                  "description": ">>> Change path in Variables tab"
+                },
+                {
+                  "key": "current_image",
+                  "type": "file",
+                  "src": "{{curr_image_path}}",
+                  "description": ">>> Change path in Variables tab"
+                },
+                {
+                  "key": "ignore_mask",
+                  "type": "file",
+                  "src": "{{mask_image_path}}",
+                  "description": "Optional — remove this row if you don't have a mask"
+                },
+                {
+                  "key": "enable_dl_validation",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "deep_feature_threshold",
+                  "value": "0.82",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/inspect",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inspect"]
+            },
+            "description": "**Non-blocking** — submits job and returns `job_id` immediately (HTTP 202).\nThe test script auto-saves `job_id` so the polling requests below work automatically.\n\nThen use **Poll Job Status** to get results."
+          },
+          "response": [
+            {
+              "name": "202 Accepted",
+              "status": "Accepted",
+              "code": 202,
+              "body": "{\n  \"job_id\": \"d932024d-9d11-41b9-ba3d-dada215cd3cb\",\n  \"status\": \"PENDING\",\n  \"message\": \"Inspection job queued. 1 reference image(s) received.\",\n  \"poll_url\": \"/api/v1/inspect/d932024d-9d11-41b9-ba3d-dada215cd3cb\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Poll Job Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/inspect/{{job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inspect", "{{job_id}}"]
+            },
+            "description": "`job_id` is auto-filled from the **Submit Inspection Job** test script.\n\nKeep sending this request until `status` changes from `PROCESSING` → `DONE`.\nOnce DONE, the full detection result is included in the response."
+          },
+          "response": [
+            {
+              "name": "PROCESSING",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"job_id\": \"d932024d-9d11-41b9-ba3d-dada215cd3cb\",\n  \"status\": \"PROCESSING\",\n  \"submitted_at\": \"2026-06-27T01:30:00Z\",\n  \"completed_at\": null,\n  \"processing_time_ms\": null,\n  \"result\": null,\n  \"error\": null\n}"
+            },
+            {
+              "name": "DONE — FOD Detected",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"job_id\": \"d932024d-9d11-41b9-ba3d-dada215cd3cb\",\n  \"status\": \"DONE\",\n  \"submitted_at\": \"2026-06-27T01:30:00Z\",\n  \"completed_at\": \"2026-06-27T01:30:01Z\",\n  \"processing_time_ms\": 1708,\n  \"result\": {\n    \"status\": \"FOD_DETECTED\",\n    \"accuracy_mode\": \"HYBRID_COLOR+DIFFMAP\",\n    \"similarity_score\": 95.64,\n    \"alignment_score\": 0.853,\n    \"objects\": 1,\n    \"detections\": [\n      {\n        \"x\": 510, \"y\": 193,\n        \"width\": 99, \"height\": 158,\n        \"area\": 8426,\n        \"confidence\": 0.827,\n        \"label\": \"foreign_object_color_orange\",\n        \"method\": \"color_anomaly\"\n      }\n    ],\n    \"output_image\": \"output/job_d932024d_marked.jpg\",\n    \"difference_map\": \"output/job_d932024d_diff.jpg\",\n    \"mask_image\": \"output/job_d932024d_mask.png\",\n    \"processing_time_ms\": 1708\n  },\n  \"error\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Marked Output Image",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/inspect/{{job_id}}/images/marked",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inspect", "{{job_id}}", "images", "marked"]
+            },
+            "description": "Returns the annotated JPEG image with bounding boxes drawn around detected FOD objects.\nJob must be in `DONE` state."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Difference Heatmap Image",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/inspect/{{job_id}}/images/diff",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inspect", "{{job_id}}", "images", "diff"]
+            },
+            "description": "Returns the JET-colored difference heatmap (JPEG).\nRed/yellow areas = high difference regions, blue = low difference."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Binary Mask Image",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/inspect/{{job_id}}/images/mask",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inspect", "{{job_id}}", "images", "mask"]
+            },
+            "description": "Returns the binary object mask (PNG).\nWhite pixels = detected foreign object regions."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Job",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/inspect/{{job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inspect", "{{job_id}}"]
+            },
+            "description": "Removes the job from the in-memory store.\nDoes not delete output image files from disk."
+          },
+          "response": [
+            {
+              "name": "200 Deleted",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"job_id\": \"d932024d-9d11-41b9-ba3d-dada215cd3cb\",\n  \"deleted\": true,\n  \"message\": \"Job removed from store.\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 — JOB HISTORY",
+      "item": [
+        {
+          "name": "List All Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/jobs?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "jobs"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Max results (1–200)"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Skip N jobs (for pagination)"
+                }
+              ]
+            },
+            "description": "Returns all jobs sorted newest-first with total count."
+          },
+          "response": []
+        },
+        {
+          "name": "List DONE Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/jobs?status=DONE&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "jobs"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "DONE",
+                  "description": "Filter: PENDING | PROCESSING | DONE | FAILED"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Filter jobs by status. Use `status=FAILED` to review failed inspections."
+          },
+          "response": []
+        },
+        {
+          "name": "List FAILED Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/jobs?status=FAILED",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "jobs"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "FAILED"
+                }
+              ]
+            },
+            "description": "List failed jobs to review errors."
+          },
+          "response": []
+        },
+        {
+          "name": "Purge Old Jobs (1 hour)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/jobs?max_age_seconds=3600",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "jobs"],
+              "query": [
+                {
+                  "key": "max_age_seconds",
+                  "value": "3600",
+                  "description": "Delete DONE/FAILED jobs older than this many seconds"
+                }
+              ]
+            },
+            "description": "Deletes all DONE or FAILED jobs older than `max_age_seconds` from memory.\nKeeps active (PENDING/PROCESSING) jobs untouched."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6 — LEGACY (Backward Compat)",
+      "item": [
+        {
+          "name": "Detect FOD — Legacy Route",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "reference_images",
+                  "type": "file",
+                  "src": "{{ref_image_path}}"
+                },
+                {
+                  "key": "current_image",
+                  "type": "file",
+                  "src": "{{curr_image_path}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/detect-fod",
+              "host": ["{{base_url}}"],
+              "path": ["detect-fod"]
+            },
+            "description": "Original `/detect-fod` route kept for backward compatibility.\nBehaves identically to `POST /api/v1/detect`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7 — ERROR HANDLING",
+      "item": [
+        {
+          "name": "404 — Job Not Found",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/inspect/nonexistent-job-id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inspect", "nonexistent-job-id"]
+            },
+            "description": "Demonstrates 404 error response for an invalid job ID."
+          },
+          "response": [
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"detail\": \"Job 'nonexistent-job-id' not found.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "409 — Image Not Ready Yet",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/inspect/{{job_id}}/images/marked",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inspect", "{{job_id}}", "images", "marked"]
+            },
+            "description": "If you request an image before the job is DONE, you get a 409 Conflict."
+          },
+          "response": [
+            {
+              "name": "409 Conflict",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"detail\": \"Job is not DONE yet (current status: PROCESSING).\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8 — SWAGGER / DOCS",
+      "item": [
+        {
+          "name": "Open Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/docs",
+              "host": ["{{base_url}}"],
+              "path": ["docs"]
+            },
+            "description": "Opens the auto-generated Swagger UI.\nOpen this URL in a browser to explore and test all endpoints interactively."
+          },
+          "response": []
+        },
+        {
+          "name": "Download OpenAPI Schema",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/openapi.json",
+              "host": ["{{base_url}}"],
+              "path": ["openapi.json"]
+            },
+            "description": "Downloads the full OpenAPI 3.0 schema JSON — import into any API tool."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
