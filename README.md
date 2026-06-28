@@ -134,6 +134,43 @@ For environments where deploying the full API server is not necessary or feasibl
 
 This script consolidates the entire FOD pipeline (preprocessing, alignment, difference engine, segmentation, and validation components) into a single, dependency-free Python file (aside from standard PyPI packages like OpenCV, PyTorch, and Ultralytics). It is ideal for edge devices, embedded systems, or quick command-line testing without needing to set up the FastAPI server infrastructure.
 
+### How to Test the Standalone Script
+You can easily import and test the standalone script in your own Python projects. It provides a `detect_anomalies` wrapper that accepts Base64 encoded images.
+
+1. Ensure your virtual environment is active and dependencies are installed.
+2. Create a test script (e.g., `test_standalone.py`) with the following code:
+
+```python
+import cv2
+import base64
+from standalone_full_inference import detect_anomalies
+
+def encode_image(filepath):
+    img = cv2.imread(filepath)
+    _, buffer = cv2.imencode('.jpg', img)
+    return base64.b64encode(buffer).decode('utf-8')
+
+# Encode your local test images (Ensure the paths are correct)
+ref_b64 = encode_image('images/reference_image.jpg')
+curr_b64 = encode_image('images/current_image.jpg')
+
+# Run the standalone pipeline
+result = detect_anomalies(ref_b64, curr_b64)
+
+# View the JSON results
+print(f"Status: {result.get('status')}")
+print(f"Detected Objects: {result.get('objects')}")
+
+if 'detections' in result:
+    for obj in result['detections']:
+        print(f"Found FOD at X:{obj['x']} Y:{obj['y']} Area:{obj['area']} Conf:{obj['confidence']:.2f}")
+```
+
+3. Run your script:
+```bash
+python test_standalone.py
+```
+
 ---
 
 ## API Documentation
