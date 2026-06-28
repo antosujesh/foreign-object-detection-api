@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Industrial Foreign Object Detection Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-microchip icon-pulse"></i>
+                <div class="logo-text">
+                    <h1>AERO-EYE <span>FOD</span></h1>
+                    <p>Industrial Foreign Object Detection System</p>
+                </div>
+            </div>
+            <div class="status-indicator">
+                <span class="pulse-dot green"></span>
+                <span>SYSTEM ONLINE (LOCAL ENGINE)</span>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="app-workspace">
+            <!-- Sidebar: Parameters Tuning -->
+            <section class="sidebar-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-sliders"></i> Pipeline Parameters</h2>
+                    <p>Tune weights, thresholds, and filters</p>
+                </div>
+                
+                <div class="control-group">
+                    <h3>Difference Map Weights</h3>
+                    <div class="slider-container">
+                        <label for="weight-ssim-slider">SSIM Structural Similarity: <span id="weight-ssim-val">0.35</span></label>
+                        <input type="range" id="weight-ssim-slider" min="0" max="1" step="0.05" value="0.35">
+                    </div>
+                    <div class="slider-container">
+                        <label for="weight-abs-slider">Absolute Intensity Diff: <span id="weight-abs-val">0.25</span></label>
+                        <input type="range" id="weight-abs-slider" min="0" max="1" step="0.05" value="0.25">
+                    </div>
+                    <div class="slider-container">
+                        <label for="weight-lab-slider">LAB Perceptual Color: <span id="weight-lab-val">0.25</span></label>
+                        <input type="range" id="weight-lab-slider" min="0" max="1" step="0.05" value="0.25">
+                    </div>
+                    <div class="slider-container">
+                        <label for="weight-edge-slider">Sobel Structural Edges: <span id="weight-edge-val">0.15</span></label>
+                        <input type="range" id="weight-edge-slider" min="0" max="1" step="0.05" value="0.15">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Thresholding & Filters</h3>
+                    <div class="select-container">
+                        <label for="threshold-method-select">Segmentation Method</label>
+                        <select id="threshold-method-select">
+                            <option value="OTSU" selected>Otsu Threshold (Auto-Bimodal)</option>
+                            <option value="ADAPTIVE">Adaptive Gaussian (Robust to Shadows)</option>
+                            <option value="STATIC">Static Hard Threshold</option>
+                        </select>
+                    </div>
+                    <div class="slider-container">
+                        <label for="min-area-slider">Minimum Object Area (px): <span id="min-area-val">400</span></label>
+                        <input type="range" id="min-area-slider" min="10" max="2000" step="10" value="400">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Deep Learning Validation</h3>
+                    <div class="toggle-container">
+                        <label class="switch">
+                            <input type="checkbox" id="dl-validation-toggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                        <span class="toggle-label">Enable Cosine Feature Similarity</span>
+                    </div>
+                    <div class="slider-container">
+                        <label for="dl-threshold-slider">Shadow Rejection Threshold: <span id="dl-threshold-val">0.75</span></label>
+                        <input type="range" id="dl-threshold-slider" min="0.5" max="0.98" step="0.01" value="0.75">
+                        <p class="slider-info">Higher rejects more subtle color changes, preventing false positives from illumination shifts.</p>
+                    </div>
+                    <div class="slider-container">
+                        <label for="min-align-slider">Minimum Alignment Quality: <span id="min-align-val">0.40</span></label>
+                        <input type="range" id="min-align-slider" min="0.1" max="0.9" step="0.05" value="0.40">
+                    </div>
+                </div>
+
+                <button id="inspect-btn" class="btn btn-primary btn-block">
+                    <i class="fa-solid fa-magnifying-glass"></i> RUN INSPECTION
+                </button>
+            </section>
+
+            <!-- Main Panel: Upload & Results -->
+            <section class="main-panel">
+                <!-- Step 1: Upload Zones -->
+                <div class="dashboard-card upload-section">
+                    <div class="card-header">
+                        <h2><i class="fa-solid fa-upload"></i> Source Media Input</h2>
+                    </div>
+                    <div class="upload-grid">
+                        <!-- Reference Upload -->
+                        <div class="upload-box" id="upload-ref-box">
+                            <input type="file" id="ref-files-input" multiple accept="image/*" class="file-input">
+                            <div class="upload-box-content">
+                                <i class="fa-solid fa-images icon-upload"></i>
+                                <h4>OK Reference Image(s)</h4>
+                                <p>Drag & drop or click</p>
+                                <span class="badge">Multi-select allowed</span>
+                            </div>
+                            <div class="preview-overlay" id="ref-preview-container"></div>
+                        </div>
+
+                        <!-- Current Upload -->
+                        <div class="upload-box" id="upload-curr-box">
+                            <input type="file" id="curr-file-input" accept="image/*" class="file-input">
+                            <div class="upload-box-content">
+                                <i class="fa-solid fa-camera icon-upload"></i>
+                                <h4>Inspection Image (Live/NOT OK)</h4>
+                                <p>Drag & drop or click</p>
+                                <span class="badge badge-accent">Required</span>
+                            </div>
+                            <div class="preview-overlay" id="curr-preview-container"></div>
+                        </div>
+
+                        <!-- Ignore Mask Upload -->
+                        <div class="upload-box" id="upload-mask-box">
+                            <input type="file" id="mask-file-input" accept="image/*" class="file-input">
+                            <div class="upload-box-content">
+                                <i class="fa-solid fa-user-slash icon-upload"></i>
+                                <h4>Ignore Zone Mask (Optional)</h4>
+                                <p>Drag & drop or click</p>
+                                <span class="badge badge-neutral">Binary Mask</span>
+                            </div>
+                            <div class="preview-overlay" id="mask-preview-container"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Loader -->
+                <div id="loader-container" class="loader-container hidden">
+                    <div class="spinner"></div>
+                    <p id="loader-status">Running image alignment & hybrid detection engine...</p>
+                </div>
+
+                <!-- Step 3: Analysis Results -->
+                <div id="results-card" class="dashboard-card hidden">
+                    <div class="card-header flex-header">
+                        <h2><i class="fa-solid fa-chart-bar"></i> Inspection Output</h2>
+                        <div id="badge-status" class="status-badge">FOD DETECTED</div>
+                    </div>
+
+                    <!-- Statistics Grid -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon blue"><i class="fa-solid fa-percentage"></i></div>
+                            <div class="stat-info">
+                                <h3>Similarity Score</h3>
+                                <p class="stat-val" id="stat-similarity">98.45%</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon purple"><i class="fa-solid fa-align-center"></i></div>
+                            <div class="stat-info">
+                                <h3>Alignment Quality</h3>
+                                <p class="stat-val" id="stat-alignment">0.96</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon red"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                            <div class="stat-info">
+                                <h3>Objects Detected</h3>
+                                <p class="stat-val" id="stat-objects">1</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon orange"><i class="fa-solid fa-stopwatch"></i></div>
+                            <div class="stat-info">
+                                <h3>Processing Time</h3>
+                                <p class="stat-val" id="stat-time">120ms</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Details Table -->
+                    <div class="table-container hidden" id="detections-table-container">
+                        <h3><i class="fa-solid fa-list-check"></i> Detailed Anomalies List</h3>
+                        <table class="detections-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Bounding Box [X, Y, W, H]</th>
+                                    <th>Blob Area (Pixels)</th>
+                                    <th>FOD Confidence</th>
+                                    <th>Classification</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detections-table-body">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Visualization Grid -->
+                    <div class="visuals-grid">
+                        <div class="visual-panel">
+                            <h3><i class="fa-solid fa-circle-dot"></i> Marked Current Image</h3>
+                            <div class="image-wrapper">
+                                <img id="img-result" src="" alt="Marked FOD Output">
+                                <a id="link-result" href="" target="_blank" class="zoom-btn"><i class="fa-solid fa-expand"></i></a>
+                            </div>
+                        </div>
+                        <div class="visual-panel">
+                            <h3><i class="fa-solid fa-fire"></i> Weighted Difference Heatmap</h3>
+                            <div class="image-wrapper">
+                                <img id="img-heatmap" src="" alt="Difference Heatmap">
+                                <a id="link-heatmap" href="" target="_blank" class="zoom-btn"><i class="fa-solid fa-expand"></i></a>
+                            </div>
+                        </div>
+                        <div class="visual-panel">
+                            <h3><i class="fa-solid fa-mask"></i> Binary Object Mask</h3>
+                            <div class="image-wrapper">
+                                <img id="img-mask" src="" alt="Binary Mask">
+                                <a id="link-mask" href="" target="_blank" class="zoom-btn"><i class="fa-solid fa-expand"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Notification system -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
